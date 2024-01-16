@@ -37,7 +37,7 @@ def generate_labyrinth(n):
     # Simple solution: clear a straight path
     for i in range(n):
         grid[i][0] = 'path'
-        grid[0][i] = 'path'
+        grid[n-1][i] = 'path'
     
     return grid
 
