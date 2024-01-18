@@ -6,6 +6,9 @@ import sys
 WINDOW_SIZE = (800, 800)
 GRID_SIZE = 10
 TILE_SIZE = WINDOW_SIZE[0] // GRID_SIZE
+FONT_SIZE = 52
+WINNER_FONT_SIZE = 75
+TEXT_MARGIN = 10
 
 # Colors
 WHITE = (255, 255, 255)
@@ -14,7 +17,8 @@ GRAY = (100, 100, 100)
 DARK_GREEN = (0, 100, 0)
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
-BLUE = (0, 0, 255)
+BLUE = (0, 150, 255)
+ORANGE = (255, 165, 0)
 
 # Initialize Pygame
 pygame.init()
@@ -41,55 +45,80 @@ def generate_labyrinth(n):
     
     return grid
 
-def draw_labyrinth(window, labyrinth, show_walls=True):
+def draw_labyrinth(window, labyrinth, show_walls, revealed_walls):
     for y, row in enumerate(labyrinth):
         for x, tile in enumerate(row):
             rect = pygame.Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-            if tile == 'wall' and show_walls:
-                pygame.draw.rect(window, BLACK, rect)
+            if tile == 'wall':
+                if show_walls:
+                    pygame.draw.rect(window, BLACK, rect)
+                elif (x, y) in revealed_walls:
+                    pygame.draw.rect(window, GRAY, rect)  # Draw gray for revealed walls
+                else:
+                    pygame.draw.rect(window, WHITE, rect)
             else:
                 pygame.draw.rect(window, WHITE, rect)
             pygame.draw.rect(window, GRAY, rect, 1)  # Grid lines
 
-def handle_player_movement(player_position, direction, labyrinth):
+def handle_player_movement(player_position, direction, labyrinth, revealed_walls):
     x, y = player_position
-    if direction == 'up' and y > 0 and labyrinth[y - 1][x] != 'wall':
-        y -= 1
-    elif direction == 'down' and y < GRID_SIZE - 1 and labyrinth[y + 1][x] != 'wall':
-        y += 1
-    elif direction == 'left' and x > 0 and labyrinth[y][x - 1] != 'wall':
-        x -= 1
-    elif direction == 'right' and x < GRID_SIZE - 1 and labyrinth[y][x + 1] != 'wall':
-        x += 1
+    move = {'up': (0, -1), 'down': (0, 1), 'left': (-1, 0), 'right': (1, 0)}
+    dx, dy = move[direction]
+    new_x, new_y = x + dx, y + dy
+
+    if 0 <= new_x < GRID_SIZE and 0 <= new_y < GRID_SIZE:
+        if labyrinth[new_y][new_x] == 'wall':
+            revealed_walls.add((new_x, new_y))  # Add to revealed walls
+        else:
+            return new_x, new_y
+
     return x, y
 
 def main():
     labyrinth = generate_labyrinth(GRID_SIZE)
     player_position = (0, 0)
-    start_position = (0, 0)  # Starting point
-    finish_position = (GRID_SIZE - 1, GRID_SIZE - 1)  # Finish point
+    start_position = (0, 0)
+    finish_position = (GRID_SIZE - 1, GRID_SIZE - 1)
     show_walls = True
+    revealed_walls = set()  # Set to keep track of revealed walls
     game_over = False
+    start_time = pygame.time.get_ticks()  # Start time
+
+    number_of_lives = 3  # Initialize the number of lives
+    clock = pygame.time.Clock()  # Pygame clock for tracking time
 
     running = True
     while running:
+        if not game_over:
+            elapsed_time = pygame.time.get_ticks() - start_time  # Update elapsed time only if the game is not over
+        memo_time = max(5000 - elapsed_time, 0) // 1000  # Calculate memo time in seconds
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN and not game_over:
+                direction = None
                 if event.key == pygame.K_UP:
-                    player_position = handle_player_movement(player_position, 'up', labyrinth)
+                    direction = 'up'
                 elif event.key == pygame.K_DOWN:
-                    player_position = handle_player_movement(player_position, 'down', labyrinth)
+                    direction = 'down'
                 elif event.key == pygame.K_LEFT:
-                    player_position = handle_player_movement(player_position, 'left', labyrinth)
+                    direction = 'left'
                 elif event.key == pygame.K_RIGHT:
-                    player_position = handle_player_movement(player_position, 'right', labyrinth)
-                elif event.key == pygame.K_SPACE:
-                    show_walls = not show_walls
+                    direction = 'right'
+
+                if direction:
+                    if show_walls:
+                        show_walls = False
+                    player_position = handle_player_movement(player_position, direction, labyrinth, revealed_walls)
+                
+        # Toggle visibility after 5 seconds
+        current_time = pygame.time.get_ticks()
+        if current_time - start_time > 5000:  # 5000 milliseconds
+            show_walls = False
 
         window.fill(GRAY)
-        draw_labyrinth(window, labyrinth, show_walls)
+        draw_labyrinth(window, labyrinth, show_walls, revealed_walls)
 
         # Draw the start and finish squares
         start_rect = pygame.Rect(start_position[0] * TILE_SIZE, start_position[1] * TILE_SIZE, TILE_SIZE, TILE_SIZE)
@@ -104,9 +133,20 @@ def main():
         # Check if player reaches the finish point
         if player_position == finish_position:
             game_over = True
-            font = pygame.font.SysFont(None, 55)
+            font = pygame.font.SysFont(None, WINNER_FONT_SIZE)
             text = font.render("Congratulations!", True, BLUE)
             window.blit(text, (WINDOW_SIZE[0] // 2 - text.get_width() // 2, WINDOW_SIZE[1] // 2 - text.get_height() // 2))
+
+        # Displaying the text for lives, current time, and memo time
+        font = pygame.font.SysFont(None, FONT_SIZE)
+        lives_text = font.render(f"Lives: {number_of_lives}", True, RED)
+        current_time_text = font.render(f"{elapsed_time // 1000 // 60:02d}:{elapsed_time // 1000 % 60:02d}", True, BLUE)
+        memo_time_text = font.render(f"Memo time: {memo_time}", True, ORANGE) if show_walls else None
+
+        window.blit(lives_text, (TEXT_MARGIN, TEXT_MARGIN))
+        window.blit(current_time_text, (WINDOW_SIZE[0] // 2 - current_time_text.get_width() // 2, TEXT_MARGIN))
+        if memo_time_text:
+            window.blit(memo_time_text, (WINDOW_SIZE[0] - memo_time_text.get_width() - TEXT_MARGIN, TEXT_MARGIN))
 
         pygame.display.flip()
 
