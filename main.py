@@ -20,6 +20,10 @@ GREEN = (0, 255, 0)
 BLUE = (0, 150, 255)
 ORANGE = (255, 165, 0)
 
+# Game Variables
+number_of_lives = 3
+memory_time_limit = 5000 # [ms]
+
 # Initialize Pygame
 pygame.init()
 
@@ -61,6 +65,8 @@ def draw_labyrinth(window, labyrinth, show_walls, revealed_walls):
             pygame.draw.rect(window, GRAY, rect, 1)  # Grid lines
 
 def handle_player_movement(player_position, direction, labyrinth, revealed_walls):
+    global number_of_lives
+
     x, y = player_position
     move = {'up': (0, -1), 'down': (0, 1), 'left': (-1, 0), 'right': (1, 0)}
     dx, dy = move[direction]
@@ -69,12 +75,19 @@ def handle_player_movement(player_position, direction, labyrinth, revealed_walls
     if 0 <= new_x < GRID_SIZE and 0 <= new_y < GRID_SIZE:
         if labyrinth[new_y][new_x] == 'wall':
             revealed_walls.add((new_x, new_y))  # Add to revealed walls
+            number_of_lives -= 1
         else:
             return new_x, new_y
 
     return x, y
 
 def main():
+    global number_of_lives, memory_time_limit
+
+    #
+    # SETUP
+    #
+
     labyrinth = generate_labyrinth(GRID_SIZE)
     player_position = (0, 0)
     start_position = (0, 0)
@@ -84,15 +97,19 @@ def main():
     game_over = False
     start_time = pygame.time.get_ticks()  # Start time
 
-    number_of_lives = 3  # Initialize the number of lives
     clock = pygame.time.Clock()  # Pygame clock for tracking time
+
+    #
+    # MAIN LOOP
+    #
 
     running = True
     while running:
         if not game_over:
             elapsed_time = pygame.time.get_ticks() - start_time  # Update elapsed time only if the game is not over
-        memo_time = max(5000 - elapsed_time, 0) // 1000  # Calculate memo time in seconds
+        memo_time = max(memory_time_limit - elapsed_time, 0) // 1000  # Calculate memo time in seconds
 
+        # Check for keyboard inputs
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -114,7 +131,7 @@ def main():
                 
         # Toggle visibility after 5 seconds
         current_time = pygame.time.get_ticks()
-        if current_time - start_time > 5000:  # 5000 milliseconds
+        if current_time - start_time > memory_time_limit:  # 5000 milliseconds
             show_walls = False
 
         window.fill(GRAY)
@@ -136,6 +153,12 @@ def main():
             font = pygame.font.SysFont(None, WINNER_FONT_SIZE)
             text = font.render("Congratulations!", True, BLUE)
             window.blit(text, (WINDOW_SIZE[0] // 2 - text.get_width() // 2, WINDOW_SIZE[1] // 2 - text.get_height() // 2))
+
+        if number_of_lives <= 0:
+            game_over = True
+            font = pygame.font.SysFont(None, WINNER_FONT_SIZE)
+            game_over_text = font.render("Game Over", True, RED)
+            window.blit(game_over_text, (WINDOW_SIZE[0] // 2 - game_over_text.get_width() // 2, WINDOW_SIZE[1] // 2 - game_over_text.get_height() // 2))
 
         # Displaying the text for lives, current time, and memo time
         font = pygame.font.SysFont(None, FONT_SIZE)
