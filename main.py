@@ -29,6 +29,7 @@ class Game:
         self.memory_time_limit = 5000  # Default memory time limit
         self.game_over = False
         self.in_menu = True
+        self.final_elapsed_time = None  # New attribute to store final elapsed time
         self.initialize_buttons()
         self.reset_game()
 
@@ -210,8 +211,7 @@ class Game:
 
             if self.player_position == self.finish_position or self.number_of_lives <= 0:
                 self.game_over = True
-                # Stopping the timer by not updating the start_time anymore
-                return  # Exit the method to prevent further updates
+                self.final_elapsed_time = elapsed_time  # Store the final elapsed time
 
     def draw_game(self):
         self.window.fill(GRAY)
@@ -244,12 +244,14 @@ class Game:
         # Draw the text for lives, current time, and memo time
         font = pygame.font.SysFont(None, FONT_SIZE)
         lives_text = font.render(f"Lives: {self.number_of_lives}", True, RED)
-        elapsed_time = pygame.time.get_ticks() - self.start_time
-        current_time_text = font.render(f"{elapsed_time // 1000 // 60:02d}:{elapsed_time // 1000 % 60:02d}", True, BLUE)
-        memo_time_text = font.render(f"Memo time: {self.memo_time}", True, ORANGE) if self.show_walls else None
-
-        self.window.blit(lives_text, (TEXT_MARGIN, TEXT_MARGIN))
+        # Use final_elapsed_time if the game is over, else calculate current elapsed time
+        current_time = self.final_elapsed_time if self.game_over else pygame.time.get_ticks() - self.start_time
+        current_time_text = font.render(f"{current_time // 1000 // 60:02d}:{current_time // 1000 % 60:02d}", True, BLUE)
         self.window.blit(current_time_text, (WINDOW_SIZE[0] // 2 - current_time_text.get_width() // 2, TEXT_MARGIN))
+
+        memo_time_text = font.render(f"Memo time: {self.memo_time}", True, ORANGE) if self.show_walls else None
+        self.window.blit(lives_text, (TEXT_MARGIN, TEXT_MARGIN))
+
         if memo_time_text:
             self.window.blit(memo_time_text, (WINDOW_SIZE[0] - memo_time_text.get_width() - TEXT_MARGIN, TEXT_MARGIN))
 
