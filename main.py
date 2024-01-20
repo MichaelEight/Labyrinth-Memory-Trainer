@@ -21,14 +21,61 @@ BLUE = (0, 150, 255)
 ORANGE = (255, 165, 0)
 
 class Game:
-    def __init__(self, grid_size, memory_time_limit):
-        self.grid_size = grid_size
-        self.memory_time_limit = memory_time_limit
-        self.window = pygame.display.set_mode(WINDOW_SIZE)
+    def __init__(self, window_size):
+        self.window_size = window_size
+        self.window = pygame.display.set_mode(self.window_size)
         self.clock = pygame.time.Clock()
+        self.grid_size = 10  # Default grid size
+        self.memory_time_limit = 5000  # Default memory time limit
+        self.game_over = False
+        self.in_menu = True
+        self.initialize_buttons()
         self.reset_game()
 
+    def initialize_buttons(self):
+        button_width = 200
+        button_height = 50
+        horizontal_center = self.window_size[0] // 2 - button_width // 2
+        vertical_start = 250  # Starting position for the buttons (vertically)
+        vertical_spacing = 100  # Space between each button
+
+        self.buttons = {
+            "Easy": pygame.Rect(horizontal_center, vertical_start, button_width, button_height),
+            "Medium": pygame.Rect(horizontal_center, vertical_start + vertical_spacing, button_width, button_height),
+            "Hard": pygame.Rect(horizontal_center, vertical_start + vertical_spacing * 2, button_width, button_height)
+        }
+
+    def handle_menu_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:  # Left mouse click
+                    for difficulty, button in self.buttons.items():
+                        if button.collidepoint(event.pos):
+                            grid_size = {"Easy": 5, "Medium": 7, "Hard": 10}[difficulty]
+                            self.memory_time_limit = 5000
+                            self.grid_size = grid_size
+                            self.reset_game()
+                            self.in_menu = False
+
+        for difficulty, button in self.buttons.items():
+            if button.collidepoint(event.pos):
+                self.grid_size = {"Easy": 5, "Medium": 7, "Hard": 10}[difficulty]
+                self.memory_time_limit = 5000
+                self.reset_game()  # Call reset_game here after setting grid_size
+                self.in_menu = False
+                return
+
     def reset_game(self):
+        # Calculate tile size based on grid size
+        self.tile_size = min(self.window_size[0] // self.grid_size, self.window_size[1] // self.grid_size)
+        
+        # Calculate offset to center the labyrinth
+        self.labyrinth_offset_x = (self.window_size[0] - self.tile_size * self.grid_size) // 2
+        self.labyrinth_offset_y = (self.window_size[1] - self.tile_size * self.grid_size) // 2
+
         self.labyrinth = self.generate_labyrinth(self.grid_size)
         self.player_position = (0, 0)
         self.start_position = (0, 0)
@@ -38,7 +85,6 @@ class Game:
         self.number_of_lives = 3
         self.game_over = False
         self.start_time = pygame.time.get_ticks()
-        self.in_menu = True
 
     def generate_labyrinth(self, n):
         grid = [['path' for _ in range(n)] for _ in range(n)]
@@ -54,7 +100,12 @@ class Game:
     def draw_labyrinth(self, window, labyrinth, show_walls, revealed_walls):
         for y, row in enumerate(labyrinth):
             for x, tile in enumerate(row):
-                rect = pygame.Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+                rect = pygame.Rect(
+                    self.labyrinth_offset_x + x * self.tile_size,
+                    self.labyrinth_offset_y + y * self.tile_size,
+                    self.tile_size,
+                    self.tile_size
+                )
                 if tile == 'wall':
                     if show_walls:
                         pygame.draw.rect(window, BLACK, rect)
@@ -99,15 +150,30 @@ class Game:
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    self.in_menu = False  # Start the game
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:  # Left mouse click
+                for difficulty, button in self.buttons.items():
+                    if button.collidepoint(event.pos):
+                        self.grid_size = {"Easy": 5, "Medium": 7, "Hard": 10}[difficulty]
+                        self.memory_time_limit = 5000
+                        self.reset_game()
+                        self.in_menu = False
+                        return  # Exit the loop once a button is clicked
 
     def draw_menu(self):
         self.window.fill(GRAY)
         font = pygame.font.SysFont(None, FONT_SIZE)
-        text = font.render("Press SPACE to play", True, WHITE)
-        self.window.blit(text, (WINDOW_SIZE[0] // 2 - text.get_width() // 2, WINDOW_SIZE[1] // 2 - text.get_height() // 2))
+
+        # Draw the "Main Menu" title
+        title_text = font.render("Main Menu", True, WHITE)
+        title_rect = title_text.get_rect(center=(self.window_size[0] // 2, 200))
+        self.window.blit(title_text, title_rect)
+
+        # Draw buttons
+        for difficulty, button in self.buttons.items():
+            pygame.draw.rect(self.window, WHITE, button)  # Draw the button
+            text = font.render(difficulty, True, BLACK)
+            text_rect = text.get_rect(center=button.center)
+            self.window.blit(text, text_rect)
 
     def handle_game_events(self):
         for event in pygame.event.get():
@@ -152,14 +218,28 @@ class Game:
         self.window.fill(GRAY)
         self.draw_labyrinth(self.window, self.labyrinth, self.show_walls, self.revealed_walls)
 
-        # Draw start and finish squares
-        start_rect = pygame.Rect(self.start_position[0] * TILE_SIZE, self.start_position[1] * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-        pygame.draw.rect(self.window, DARK_GREEN, start_rect)
-        finish_rect = pygame.Rect(self.finish_position[0] * TILE_SIZE, self.finish_position[1] * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-        pygame.draw.rect(self.window, RED, finish_rect)
+        # Calculate positions with offset for start, finish, and player
+        start_rect = pygame.Rect(
+            self.labyrinth_offset_x + self.start_position[0] * self.tile_size,
+            self.labyrinth_offset_y + self.start_position[1] * self.tile_size,
+            self.tile_size,
+            self.tile_size
+        )
+        finish_rect = pygame.Rect(
+            self.labyrinth_offset_x + self.finish_position[0] * self.tile_size,
+            self.labyrinth_offset_y + self.finish_position[1] * self.tile_size,
+            self.tile_size,
+            self.tile_size
+        )
+        player_rect = pygame.Rect(
+            self.labyrinth_offset_x + self.player_position[0] * self.tile_size,
+            self.labyrinth_offset_y + self.player_position[1] * self.tile_size,
+            self.tile_size,
+            self.tile_size
+        )
 
-        # Draw the player
-        player_rect = pygame.Rect(self.player_position[0] * TILE_SIZE, self.player_position[1] * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+        pygame.draw.rect(self.window, DARK_GREEN, start_rect)
+        pygame.draw.rect(self.window, RED, finish_rect)
         pygame.draw.rect(self.window, GREEN, player_rect)
 
         # Draw the text for lives, current time, and memo time
@@ -194,5 +274,5 @@ pygame.display.set_caption("Labyrinth Memory Trainer")
 if __name__ == "__main__":
     pygame.init()
     pygame.display.set_caption("Labyrinth Memory Trainer")
-    game = Game(GRID_SIZE, 5000)
+    game = Game(WINDOW_SIZE)
     game.run()
