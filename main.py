@@ -208,11 +208,10 @@ class Game:
             if elapsed_time > self.memory_time_limit:
                 self.show_walls = False
 
-            if self.player_position == self.finish_position:
+            if self.player_position == self.finish_position or self.number_of_lives <= 0:
                 self.game_over = True
-
-            if self.number_of_lives <= 0:
-                self.game_over = True
+                # Stopping the timer by not updating the start_time anymore
+                return  # Exit the method to prevent further updates
 
     def draw_game(self):
         self.window.fill(GRAY)
